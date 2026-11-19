@@ -1,4 +1,6 @@
 name: Random Cron
+permissions:
+  contents: write
 on:
   workflow_run:
     workflows: ["刷步数"]
@@ -12,7 +14,7 @@ jobs:
     timeout-minutes: 3
     if: github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch'
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           token: ${{ secrets.PAT }} #此处PAT需要申请，教程详见：README
       - name: random cron
@@ -23,6 +25,12 @@ jobs:
           git config user.name github-actions
           git config user.email github-actions@users.noreply.github.com
           git add .
+          # 判断是否有文件改动，无改动直接跳过commit/push
+          if [[ -z $(git status --porcelain) ]]; then
+            echo "✅ 无文件变更，跳过提交与推送"
+            exit 0
+          fi
           current=`TZ=Asia/Shanghai date '+%Y-%m-%d %H:%M:%S'`
           git commit -m "[${current}] random cron trigger by ${{ github.event_name }}"
-          git push origin master
+          # 推送失败不终止任务，主逻辑已执行完毕
+          git push origin master || echo "⚠️ git push 推送失败，忽略本次推送，主程序执行完成"
